@@ -16,9 +16,6 @@ import re
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import re
-
-
 
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
@@ -414,7 +411,7 @@ def scatter_strong_correlations(df, output_dir):
 
     for col1, col2, value in pairs:
 
-        if count >= 3:
+        if count >= 2:
             break
 
         if (col2, col1) in plotted:
@@ -431,7 +428,7 @@ def scatter_strong_correlations(df, output_dir):
             alpha=0.6
         )
 
-        plt.title(f"Relationship between '{col1}' and '{col2}'")
+        plt.title(f"{col1} vs {col2} (Strong Relationship)")
         plt.xlabel(col1)
         plt.ylabel(col2)
 
@@ -594,19 +591,79 @@ def execute_dynamic_analysis(df, suggestions):
                     "analysis": "Anomaly Detection",
                     "result": f"{anomaly_count} anomalies detected"
                 })
+        # PCA ANALYSIS
+        elif "pca" in name or "dimensionality" in name or "reduction" in name:
+
+            from sklearn.decomposition import PCA
+            from sklearn.preprocessing import StandardScaler
+
+            if len(numeric.columns) > 1:
+
+                scaler = StandardScaler()
+                scaled = scaler.fit_transform(numeric.fillna(0))
+
+                pca = PCA()
+                pca.fit(scaled)
+
+                explained_variance = pca.explained_variance_ratio_
+
+                results.append({
+                    "analysis": "PCA Analysis",
+                    "result": {
+                        "explained_variance_ratio": explained_variance[:5].round(3).tolist(),
+                        "total_variance_explained": round(explained_variance[:2].sum(), 3)
+                    }
+                })
+        # TIME SERIES ANALYSIS
+        elif "time" in name or "trend" in name or "season" in name:
+
+            # try to find datetime column
+            time_col = None
+
+            for col in df.columns:
+                if "date" in col.lower() or "time" in col.lower() or "year" in col.lower():
+                    try:
+                        df[col] = pd.to_datetime(df[col], errors="coerce")
+                        time_col = col
+                        break
+                    except:
+                        continue
+
+            if time_col:
+
+                # pick one important numeric column
+                numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+
+                if numeric_cols:
+                    target = numeric_cols[0]
+
+                    ts = df[[time_col, target]].dropna().sort_values(time_col)
+
+                    if len(ts) > 5:
+
+                        trend = ts[target].diff().mean()
+
+                        results.append({
+                            "analysis": "Time Series Trend Analysis",
+                            "result": {
+                                "time_column": time_col,
+                                "target_variable": target,
+                                "trend_direction": "increasing" if trend > 0 else "decreasing",
+                                "average_change": round(float(trend), 3)
+                            }
+                        })
 
         #  GENERIC FALLBACK 
         else:
             results.append({
                 "analysis": name,
-                "result": "Suggested advanced analysis. Can be implemented for deeper insights."
+                "result": "Indicates potential deeper structure in the dataset and suggests further modeling opportunities that can be implemented if needed."
             })
 
     return results
 
 
 # REPORT GENERATION BY LLM
-
 def generate_report(summary, correlations, outliers, viz, cluster_info, dynamic_results):
 
     try:
@@ -614,10 +671,14 @@ def generate_report(summary, correlations, outliers, viz, cluster_info, dynamic_
         client = get_llm()
 
         prompt = f"""
-You are a senior data scientist preparing a high-impact analytical report for business stakeholders.
+You are a senior data scientist preparing a high-impact  and high-quality analytical report.
 
 Your goal is to extract **actionable insights**, not describe obvious statistics.
-
+IMPORTANT:
+- Do NOT describe data — INTERPRET it
+- Avoid generic statements
+- Every insight must include:
+  Observation → Interpretation → Implication
 
 DATASET SUMMARY
 
@@ -669,7 +730,17 @@ STRICT INSTRUCTIONS (VERY IMPORTANT)
    - business meaning
 
 5. Every insight must follow this structure:
-   Observation → Interpretation → Implication
+   Observation → Interpretation → Implication (each insight as one paragraph,and each insight must be ordered like 1,2,3...so on)
+   - No generic phrases
+   - No repetition
+   - Be specific and analytical
+   - Prioritize insights over description
+
+6.FORBIDDEN PHRASES LIKE(be specific to given data):
+   - "data shows"
+   - "there are patterns"
+   - "it can be observed"
+   - "indicates variability"
 
 
 REPORT STRUCTURE
@@ -685,9 +756,10 @@ Identify real issues (missing data, inconsistencies, skewness).
 Explain important distributions and what they mean.
 
 ## 4. Feature Relationships
-Interpret strongest correlations and why they exist.
+Interpret strongest correlations and why they exist.(explain WHY correlations exist)
 
 ## 5. Outlier Analysis
+what they represent in real-world
 Explain what unusual values indicate (errors, rare events, high performers).
 
 ## 6. Segmentation / Clustering Insights
@@ -699,7 +771,11 @@ Write 4–6 sharp, non-obvious insights.
 ## 8. Strategic Implications
 Translate insights into decisions (marketing, product, optimization).
 
-## 9. Recommendations
+## 9. Business Implications
+(what decisions can be made)
+
+
+## 10. Recommendations
 Suggest next steps (ML models, feature engineering, data collection).
 
 STYLE REQUIREMENTS
@@ -717,15 +793,90 @@ Return ONLY Markdown.
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}]
         )
+        if len(response.choices[0].message.content) < 200:
+            return "# Analysis generated limited insights. Please review dataset."
 
         return response.choices[0].message.content
+    
 
     except Exception as e:
 
         print("LLM report failed:", e)
 
         return "# Automated Dataset Analysis\n\nReport generation failed."
+    
+def rank_images(images):
+    ranked = []
 
+    for img in images:
+        score = 0
+        name = img.lower()
+
+        # HIGH VALUE charts
+        if "scatter" in name or "vs" in name:
+            score += 5   # relationships (VERY important)
+
+        if "correlation" in name:
+            score += 5   # core insight
+
+        if "cluster_pca" in name:
+            score += 5   # segmentation
+
+        if "missing" in name:
+            score += 4   # data quality
+
+        # MEDIUM VALUE
+        if "distribution" in name:
+            score += 3
+
+        if "boxplot" in name:
+            score += 3
+
+        # LOW VALUE (supporting)
+        if "categorical" in name:
+            score += 2
+
+        ranked.append((img, score))
+
+    # sort by score descending
+    ranked = sorted(ranked, key=lambda x: x[1], reverse=True)
+
+    selected = []
+    types_used = set()
+
+    for img, score in ranked:
+        name = img.lower()
+
+        if "scatter" in name and "scatter" not in types_used:
+            selected.append(img)
+            types_used.add("scatter")
+
+        elif "heatmap" in name and "heatmap" not in types_used:
+            selected.append(img)
+            types_used.add("heatmap")
+
+        elif "cluster" in name and "cluster" not in types_used:
+            selected.append(img)
+            types_used.add("cluster")
+
+        elif "boxplot" in name and "boxplot" not in types_used:
+            selected.append(img)
+            types_used.add("boxplot")
+
+        elif "distribution" in name and "distribution" not in types_used:
+            selected.append(img)
+            types_used.add("distribution")
+
+        elif "categorical" in name and "categorical" not in types_used:
+            selected.append(img)
+            types_used.add("categorical")
+
+        # stop when we have enough
+        if len(selected) == 6:
+            break
+
+    return selected
+        
 # README GENERATION
 
 def create_readme(text, output_dir, dynamic_results):
@@ -742,18 +893,74 @@ def create_readme(text, output_dir, dynamic_results):
 
         for item in dynamic_results:
             f.write(f"### {item['analysis']}\n")
-            f.write(f"{item['result']}\n\n")
+            if isinstance(item["result"], dict):
+                for k, v in item["result"].items():
+                    if isinstance(v, (int, float)):
+                        f.write(f"- {k}: {round(v,2)}\n")
 
+                    elif isinstance(v, dict):
+                        f.write(f"- {k}:\n")
+                        for sub_k, sub_v in v.items():
+                            if isinstance(sub_v, (int, float)):
+                                f.write(f"  - {sub_k}: {round(sub_v,2)}\n")
+                            else:
+                                f.write(f"  - {sub_k}: {sub_v}\n")
+
+                    else:
+                        f.write(f"- {k}: {v}\n")
+            else:
+                f.write(f"{item['result']}\n")
+
+            f.write("\n")
+
+        f.write("\n\n## Interpretation of Visual Evidence\n\n")
+        f.write(
+        "The following visualizations support and validate the analytical findings discussed above, "
+        "highlighting key distributions, relationships, and segmentation patterns.\n\n"
+        )
+        
         f.write("\n\n## Visualizations\n\n")
 
         images = sorted(
-                [img for img in os.listdir(output_dir) if img.endswith(".png")]
-            )[:8]
-        for img in images:
-            title = img.replace("_", " ").replace(".png", "").title()
-            f.write(f"### {title}\n")
-            f.write(f"![{title}]({img})\n\n")
+            [img for img in os.listdir(output_dir) if img.endswith(".png")]
+        )
+        images = rank_images(images) 
+        images = images[:6]
 
+        for img in images:
+
+            title = img.replace("_", " ").replace(".png", "").title()
+        
+            f.write(f"### {title}\n\n")
+            
+        
+            # description logic
+            if "scatter" in img or "vs" in img:
+                desc = "This scatter plot shows the relationship between two key variables, helping identify correlation patterns or trends."
+        
+            elif "correlation" in img:
+                desc = "This heatmap highlights strong relationships between numerical features, indicating which variables move together."
+        
+            elif "cluster" in img:
+                desc = "This visualization represents clustering results, showing how data points are grouped based on similarity."
+        
+            elif "boxplot" in img:
+                desc = "This boxplot highlights the distribution of values and helps identify potential outliers in the dataset."
+        
+            elif "distribution" in img:
+                desc = "This plot shows how values are distributed, revealing skewness, spread, and concentration."
+        
+            elif "categorical" in img:
+                desc = "This chart shows frequency distribution of categorical variables, helping understand dominant categories."
+        
+            elif "missing" in img:
+                desc = "This heatmap reveals missing data patterns across features, helping identify data quality issues."
+        
+            else:
+                desc = "This visualization provides additional perspective on the dataset."
+        
+            f.write(f"{desc}\n\n")
+            f.write(f"![{title}]({img})\n\n")
 
 # MAIN PIPELINE
 
@@ -795,7 +1002,8 @@ def main():
     dynamic_results = execute_dynamic_analysis(df, suggestions)
 
     report = generate_report(summary, correlations, outliers, viz_insights, cluster_info, dynamic_results)
-
+    if not report or len(report) < 300:
+        report = "# Automated Data Analysis\n\nInsights could not be fully generated. Review dataset."
     create_readme(report, output_dir, dynamic_results)
 
     print("Analysis completed successfully.")
