@@ -34,3 +34,34 @@ Each dataset generates:
 
 A detailed README.md
 Relevant visualizations
+
+How to Run
+uv run autolysis.py dataset.csv
+
+Example:
+
+uv run autolysis.py goodreads.csv
+Technologies Used
+Python
+Pandas
+Scikit-learn
+Seaborn / Matplotlib
+LLM (OpenAI / Groq)
+Key Innovation
+
+This project goes beyond static analysis by introducing:
+
+LLM-guided dynamic analytics, where:
+
+The model suggests new analytical directions
+The system executes them automatically
+Results are incorporated into insights
+
+Output
+
+For each dataset:
+
+Structured Markdown report
+Visual insights
+Advanced analysis results
+
