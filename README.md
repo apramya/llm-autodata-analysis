@@ -7,11 +7,11 @@ This project implements an intelligent data analysis pipeline that combines trad
 
 The system automatically:
 
-Performs dataset analysis
-Generates meaningful visualizations
-Uses LLMs to suggest advanced analyses
-Executes selected analyses dynamically
-Produces professional analytical reports
+1.Performs dataset analysis
+2.Generates meaningful visualizations
+3.Uses LLMs to suggest advanced analyses
+4.Executes selected analyses dynamically
+5.Produces professional analytical reports
 
 Key Features:
 1. Automated EDA
@@ -41,13 +41,16 @@ uv run autolysis.py dataset.csv
 Example:
 
 uv run autolysis.py goodreads.csv
-Technologies Used
-Python
-Pandas
-Scikit-learn
-Seaborn / Matplotlib
-LLM (OpenAI / Groq)
-Key Innovation
+
+Technologies Used:
+
+->Python
+->Pandas
+->Scikit-learn
+->Seaborn / Matplotlib
+->LLM (Groq)
+
+Key Innovation:
 
 This project goes beyond static analysis by introducing:
 
