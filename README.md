@@ -47,7 +47,7 @@ Technologies Used:
 1.Python
 2.Pandas
 3.Scikit-learn
-4.Seaborn / Matplotlib
+4.Seaborn & Matplotlib
 5.LLM (Groq)
 
 Key Innovation:
