@@ -44,11 +44,11 @@ uv run autolysis.py goodreads.csv
 
 Technologies Used:
 
-->Python
-->Pandas
-->Scikit-learn
-->Seaborn / Matplotlib
-->LLM (Groq)
+1.Python
+2.Pandas
+3.Scikit-learn
+4.Seaborn / Matplotlib
+5.LLM (Groq)
 
 Key Innovation:
 
